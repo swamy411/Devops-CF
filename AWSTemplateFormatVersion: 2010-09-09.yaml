@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is jenkins deployement
+
+Parameters: 
+  ENV: 
+    Type: String
+    Default: 'dev'
+  LambdaRoleArn:
+    Type: String
+    Default: 'arn:aws:iam::491655376147:role/dev_ClearExistingExportZip'
+
+Resources:
+# Execution role for Lambda functions
+  IamLambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      RoleName: !Sub ${ENV}-ClearExistingExportZip
+      Policies:
+        - PolicyName: !Sub ${ENV}-ClearExistingExportZip-policy         
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogStream'
+                  - 'logs:CreateLogGroup'
+                  - 'logs:PutLogEvents'
+                Resource:
+                  - !Sub  arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/ClearExistingExportZip-${ENV}*
+                  - !Sub  arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/ClearExistingExportZip-${ENV}*:log-stream:*
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+
+  ClearExistingExportZip: 
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Code: ./
+      FunctionName: !Sub ${AWS::StackName}-${ENV}-ClearExistingExportZip
+      Handler: index.handler
+      MemorySize: 1664
+      Role: !GetAtt IamLambdaExecutionRole.Arn
+      # Role: !Ref LambdaRoleArn
+      Runtime: nodejs12.x
+      Timeout: 600
+      Environment:
+        Variables:
+          ssm_store: !Sub /${ENV}/
+      # VpcConfig:
+      #   SecurityGroupIds:
+      #     - sg-005a73d593a28e2a0
+      #   SubnetIds:
+      #     - subnet-06a08a7de749cfd7d
+      #     - subnet-02f8f518e75d79ff5
+#Uncomment above lines when you are using client account
