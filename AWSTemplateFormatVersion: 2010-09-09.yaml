@@ -2,6 +2,9 @@ AWSTemplateFormatVersion: 2010-09-09
 Description: This is jenkins deployement
 
 Parameters: 
+S3Bucket:
+    Type: String
+    Default: "lambdatesting8"
   ENV: 
     Type: String
     Default: 'dev'
