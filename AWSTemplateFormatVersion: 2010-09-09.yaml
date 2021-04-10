@@ -4,7 +4,7 @@ Description: This is jenkins deployement
 Parameters: 
 S3Bucket:
     Type: String
-    Default: "lambdatesting8"
+    Default: "clearexistingexport"
   Environment: 
     Type: String
     Default: 'dev'
