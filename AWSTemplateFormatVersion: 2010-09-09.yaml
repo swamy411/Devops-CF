@@ -33,6 +33,8 @@ Resources:
               - Effect: Allow
                 Action:
                   - 'logs:CreateLogStream'
+                  
+ 
                   - 'logs:CreateLogGroup'
                   - 'logs:PutLogEvents'
                 Resource:
@@ -62,3 +64,75 @@ Resources:
       #     - subnet-06a08a7de749cfd7d
       #     - subnet-02f8f518e75d79ff5
 #Uncomment above lines when you are using client account
+
+
+
+# Version Publish Function
+  LambdaVersion:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: "index.handler"
+      Role: 
+        Fn::GetAtt: [LambdaRole, Arn]
+      Runtime: nodejs12.x
+      Code:
+        ZipFile: 
+          Fn::Sub: |
+            var AWS = require('aws-sdk');
+            var response = require('cfn-response');
+            exports.handler = (event, context) => {
+              console.log("Request received:\n", JSON.stringify(event));
+              if (event.RequestType == 'Delete') {
+                return response.send(event, context, response.SUCCESS);
+              }
+              // Lambda Versioning
+              var lambda = new AWS.Lambda();
+              console.log("Before Lambda Version Execution")
+              var params = { FunctionName: event.ResourceProperties.FunctionName};
+              // [INFO: Publish Version]
+              lambda.publishVersion(params).promise().then((data) => {
+                console.log("Data:\n", JSON.stringify(data));
+                // Lambda Alias
+                /*
+                1. List All the Aliases Associated with the Function 
+                2. Check If the Alias Already Exists !
+                3. Create New Alias
+                */
+                lambda.listAliases(params, function(err, list_alias_data) {
+                  if (err) console.log(err, err.stack); 
+                  else {
+                    console.log(list_alias_data);
+                    // 2 . Check If alias Found 
+                    alias_found=false;
+                    if (list_alias_data && list_alias_data.Aliases) {
+                      for (var k in list_alias_data.Aliases) {
+                        if (list_alias_data.Aliases[k].Name == event.ResourceProperties.Environment) {
+                          alias_found=true;  
+                          break;
+                        }
+                      }
+                    } 
+                    var alias_params = {
+                      FunctionName: event.ResourceProperties.FunctionName,
+                      FunctionVersion: data.Version,
+                      Name: event.ResourceProperties.Environment
+                    };
+                    if (alias_found) 
+                      lambda.updateAlias(alias_params, function(err, aliasdata) {
+                        if (err) console.log(err, err.stack);
+                        else     console.log(aliasdata);
+                        return response.send(event, context, response.SUCCESS, {Version: data.Version}, data.FunctionArn);
+                      });
+                    else
+                      //create alias
+                      lambda.createAlias(alias_params, function(err, aliasdata) {
+                        if (err) console.log(err, err.stack);
+                        else     console.log(aliasdata);
+                        return response.send(event, context, response.SUCCESS, {Version: data.Version}, data.FunctionArn);
+                      });
+                  }
+                });
+              }).catch((e) => {
+                return response.send(event, context, response.FAILED, e);
+              });
+            };
